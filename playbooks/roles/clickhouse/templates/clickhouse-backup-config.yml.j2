@@ -1,0 +1,21 @@
+general:
+  remote_storage: s3
+  max_file_size: 1073741824
+  backups_to_keep_local: 7
+  backups_to_keep_remote: 7
+
+clickhouse:
+  # Use the admin user we created in RBAC
+  username: db_admin
+  password: "{{ vault_admin_password }}"
+  host: "{{ ansible_default_ipv4.address }}"
+  port: 9000
+
+s3:
+  access_key: "{{ vault_s3_access_key }}"
+  secret_key: "{{ vault_s3_secret_key }}"
+  bucket: "{{ clickhouse_backup_s3_bucket }}"
+  region: "{{ clickhouse_backup_s3_region }}"
+  endpoint: ""
+  path: ""
+  compression_level: 1

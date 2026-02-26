@@ -1,0 +1,23 @@
+<clickhouse>
+  <keeper_server>
+
+    <tcp_port>{{ clickhouse_keeper_tcp_port }}</tcp_port>
+    <listen_host>0.0.0.0</listen_host>
+
+    <server_id>{{ groups['keeper'].index(inventory_hostname) + 1 }}</server_id>
+
+    <log_storage_path>/var/lib/clickhouse/coordination/log</log_storage_path>
+    <snapshot_storage_path>/var/lib/clickhouse/coordination/snapshots</snapshot_storage_path>
+
+    <raft_configuration>
+{% for host in groups['keeper'] %}
+      <server>
+        <id>{{ groups['keeper'].index(host) + 1 }}</id>
+        <hostname>{{ hostvars[host]['ansible_default_ipv4']['address'] }}</hostname>
+        <port>{{ clickhouse_keeper_raft_port }}</port>
+      </server>
+{% endfor %}
+    </raft_configuration>
+
+  </keeper_server>
+</clickhouse>

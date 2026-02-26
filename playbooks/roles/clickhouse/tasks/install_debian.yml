@@ -1,0 +1,17 @@
+- name: Add ClickHouse GPG key
+  ansible.builtin.apt_key:
+    url: https://packages.clickhouse.com/rpm/lts/repodata/repomd.xml.key
+    state: present
+
+- name: Add ClickHouse APT repository
+  ansible.builtin.apt_repository:
+    repo: "deb https://packages.clickhouse.com/deb stable main"
+    state: present
+
+- name: Install ClickHouse packages on Debian/Ubuntu
+  ansible.builtin.apt:
+    name:
+      - clickhouse-server
+      - clickhouse-client
+    update_cache: yes
+    state: present

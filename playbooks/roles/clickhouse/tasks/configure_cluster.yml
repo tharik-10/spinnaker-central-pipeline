@@ -1,0 +1,31 @@
+- name: Set shard and replica IDs
+  ansible.builtin.set_fact:
+    shard_id: "01"
+    replica_id: "{{ '%02d' | format(groups['clickhouse'].index(inventory_hostname) + 1) }}"
+
+- name: Deploy ClickHouse cluster configuration
+  ansible.builtin.template:
+    src: cluster.xml.j2
+    dest: /etc/clickhouse-server/config.d/cluster.xml
+    owner: clickhouse
+    group: clickhouse
+    mode: '0644'
+  notify: restart clickhouse
+
+- name: Deploy ClickHouse macros configuration
+  ansible.builtin.template:
+    src: macros.xml.j2
+    dest: /etc/clickhouse-server/config.d/macros.xml
+    owner: clickhouse
+    group: clickhouse
+    mode: '0644'
+  notify: restart clickhouse
+
+- name: Deploy ClickHouse ZooKeeper configuration
+  ansible.builtin.template:
+    src: zookeeper.xml.j2
+    dest: /etc/clickhouse-server/config.d/zookeeper.xml
+    owner: clickhouse
+    group: clickhouse
+    mode: '0644'
+  notify: restart clickhouse

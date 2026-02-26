@@ -1,0 +1,17 @@
+- name: Stop ClickHouse before coordination reset
+  ansible.builtin.service:
+    name: clickhouse-server
+    state: stopped
+  become: true
+
+- name: Remove embedded Keeper coordination state
+  ansible.builtin.file:
+    path: /var/lib/clickhouse/coordination
+    state: absent
+  become: true
+
+- name: Start ClickHouse after coordination reset
+  ansible.builtin.service:
+    name: clickhouse-server
+    state: started
+  become: true

@@ -1,0 +1,14 @@
+- name: Add ClickHouse YUM repository
+  ansible.builtin.yum_repository:
+    name: clickhouse
+    description: ClickHouse
+    baseurl: https://packages.clickhouse.com/rpm/lts/
+    gpgcheck: no
+    enabled: yes
+
+- name: Install ClickHouse packages on RHEL/CentOS
+  ansible.builtin.yum:
+    name:
+      - clickhouse-server
+      - clickhouse-client
+    state: present

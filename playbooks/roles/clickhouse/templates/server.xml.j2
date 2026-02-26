@@ -1,0 +1,30 @@
+<clickhouse>
+    <listen_host>127.0.0.1</listen_host>
+    <listen_host>{{ ansible_default_ipv4.address }}</listen_host>
+
+    <tcp_port>9000</tcp_port>
+    <http_port>8123</http_port>
+
+    {% if clickhouse_tls_enabled | bool %}
+    <https_port>8443</https_port>
+    <tcp_port_secure>9440</tcp_port_secure>
+
+    <openSSL>
+        <server>
+            <certificateFile>{{ clickhouse_tls_cert_file }}</certificateFile>
+            <privateKeyFile>{{ clickhouse_tls_key_file }}</privateKeyFile>
+            <verificationMode>none</verificationMode>
+            <loadDefaultCAFile>true</loadDefaultCAFile>
+            <cacheSessions>true</cacheSessions>
+            <disableProtocols>sslv2,sslv3</disableProtocols>
+            <preferServerCiphers>true</preferServerCiphers>
+        </server>
+        <client>
+            <loadDefaultCAFile>true</loadDefaultCAFile>
+            <cacheSessions>true</cacheSessions>
+            <disableProtocols>sslv2,sslv3</disableProtocols>
+            <preferServerCiphers>true</preferServerCiphers>
+        </client>
+    </openSSL>
+    {% endif %}
+</clickhouse>

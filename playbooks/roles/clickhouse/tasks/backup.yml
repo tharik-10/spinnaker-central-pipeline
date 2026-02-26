@@ -1,0 +1,113 @@
+---
+# ==================================================
+# S3 Infrastructure Management
+# ==================================================
+- name: Enable S3 bucket versioning for snapshots
+  amazon.aws.s3_bucket:
+    name: "{{ clickhouse_backup_s3_bucket }}"
+    versioning: true
+    region: "{{ clickhouse_backup_s3_region }}"
+    # ADD THESE: Localhost needs credentials to talk to AWS API
+    aws_access_key: "{{ vault_s3_access_key }}"
+    aws_secret_key: "{{ vault_s3_secret_key }}"
+  delegate_to: localhost
+  run_once: true
+  become: false
+
+# ==================================================
+# Install clickhouse-backup (Stable & Idempotent)
+# ==================================================
+
+- name: Check if clickhouse-backup already exists
+  ansible.builtin.command: which clickhouse-backup
+  register: backup_binary
+  ignore_errors: true
+  changed_when: false
+
+- name: Download and Extract clickhouse-backup
+  ansible.builtin.unarchive:
+    src: "https://github.com/Altinity/clickhouse-backup/releases/download/v2.5.1/clickhouse-backup-linux-amd64.tar.gz"
+    dest: /tmp
+    remote_src: true
+  become: true
+  when: backup_binary.rc != 0
+
+- name: Move clickhouse-backup binary to /usr/local/bin
+  ansible.builtin.shell: |
+    find /tmp -type f -name clickhouse-backup -exec mv {} /usr/local/bin/clickhouse-backup \;
+    chmod +x /usr/local/bin/clickhouse-backup
+  args:
+    executable: /bin/bash
+  become: true
+  when: backup_binary.rc != 0
+
+# ==================================================
+# Backup Directory & Configuration
+# ==================================================
+
+- name: Ensure backup directory exists
+  ansible.builtin.file:
+    path: "{{ clickhouse_backup_dir | default('/var/lib/clickhouse/backup') }}"
+    state: directory
+    owner: clickhouse
+    group: clickhouse
+    mode: '0755'
+  become: true
+
+- name: Ensure clickhouse-backup config directory exists
+  ansible.builtin.file:
+    path: /etc/clickhouse-backup
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  become: true
+
+- name: Deploy clickhouse-backup config
+  ansible.builtin.template:
+    src: clickhouse-backup-config.yml.j2
+    dest: /etc/clickhouse-backup/config.yml
+    owner: root
+    group: root
+    mode: '0644'
+  become: true
+
+# ==================================================
+# Backup Operations
+# ==================================================
+
+- name: Set dynamic backup name with timestamp
+  ansible.builtin.set_fact:
+    current_backup_name: "backup_{{ ansible_date_time.iso8601_basic_short }}"
+  when: clickhouse_backup_enabled | bool
+
+- name: Create ClickHouse backup
+  ansible.builtin.command: >
+    clickhouse-backup create {{ current_backup_name }}
+  become: true
+  when: clickhouse_backup_enabled | bool
+  register: create_result
+
+- name: Upload ClickHouse backup to S3
+  ansible.builtin.command: >
+    clickhouse-backup upload {{ current_backup_name }}
+  become: true
+  when:
+    - clickhouse_backup_enabled | bool
+    - create_result is succeeded
+
+- name: Clean up shadow files (housekeeping)
+  ansible.builtin.command: clickhouse-backup clean
+  become: true
+  when: clickhouse_backup_enabled | bool
+
+# Robust way to delete old local backups without throwing shell errors
+- name: Apply retention policy (Local)
+  ansible.builtin.shell: |
+    BACKUPS_TO_DELETE=$(clickhouse-backup list local | head -n -7)
+    if [ ! -z "$BACKUPS_TO_DELETE" ]; then
+      clickhouse-backup delete local $BACKUPS_TO_DELETE
+    fi
+  become: true
+  ignore_errors: true
+  when: clickhouse_backup_enabled | bool

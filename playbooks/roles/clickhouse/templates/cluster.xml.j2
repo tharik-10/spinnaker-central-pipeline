@@ -1,0 +1,14 @@
+<clickhouse>
+  <remote_servers>
+    <{{ clickhouse_cluster_name }}>
+      <shard>
+        {% for host in groups['clickhouse'] %}
+        <replica>
+          <host>{{ hostvars[host]['ansible_default_ipv4']['address'] }}</host>
+          <port>{{ clickhouse_tcp_port }}</port>
+        </replica>
+        {% endfor %}
+      </shard>
+    </{{ clickhouse_cluster_name }}>
+  </remote_servers>
+</clickhouse>

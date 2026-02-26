@@ -1,0 +1,21 @@
+- name: Check if ClickHouse process is even running
+  ansible.builtin.command: systemctl is-active clickhouse-server
+  register: ch_status
+  ignore_errors: true
+
+- name: Debug ClickHouse error logs if not running
+  ansible.builtin.command: tail -n 20 /var/log/clickhouse-server/clickhouse-server.err.log
+  when: ch_status.rc != 0
+  register: ch_logs
+
+- name: Show logs on failure
+  ansible.builtin.debug:
+    var: ch_logs.stdout_lines
+  when: ch_status.rc != 0
+
+- name: Wait for ClickHouse TCP port
+  ansible.builtin.wait_for:
+    host: "{{ ansible_default_ipv4.address }}"
+    port: "{{ clickhouse_tcp_port }}"
+    state: started
+    timeout: 60

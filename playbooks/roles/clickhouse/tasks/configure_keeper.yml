@@ -1,0 +1,16 @@
+- name: Ensure ClickHouse config.d directory exists
+  ansible.builtin.file:
+    path: /etc/clickhouse-server/config.d
+    state: directory
+    owner: clickhouse
+    group: clickhouse
+    mode: '0755'
+
+- name: Deploy ClickHouse embedded Keeper configuration
+  ansible.builtin.template:
+    src: keeper.xml.j2
+    dest: /etc/clickhouse-server/config.d/keeper.xml
+    owner: clickhouse
+    group: clickhouse
+    mode: '0644'
+  notify: restart clickhouse

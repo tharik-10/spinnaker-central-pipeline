@@ -1,0 +1,73 @@
+# ===============================
+# Cluster & HA
+# ===============================
+clickhouse_cluster_name: "prod_cluster"
+clickhouse_enable_ha: true
+clickhouse_install_server: true
+clickhouse_install_keeper: true
+clickhouse_reset_coordination: true
+
+# Node Ports
+clickhouse_tcp_port: 9000
+clickhouse_http_port: 8123
+clickhouse_interserver_port: 9009
+clickhouse_keeper_tcp_port: 9181
+clickhouse_keeper_raft_port: 9234
+clickhouse_prometheus_port: 9116
+clickhouse_prometheus_listen: "{{ ansible_default_ipv4.address }}"
+
+# HA / Shards / Replicas
+shards:
+  - id: 1
+    nodes: "{{ groups['clickhouse'][:2] }}"  # First 2 nodes as replicas
+  - id: 2
+    nodes: "{{ groups['clickhouse'][2:4] }}" # Next 2 nodes as replicas
+replica_id: "{{ groups['clickhouse'].index(inventory_hostname) + 1 | string | zfill(2) }}"
+clickhouse_nodes: "{{ groups['clickhouse'] | map('extract', hostvars, ['ansible_host']) | list }}"
+clickhouse_replicated_tables:
+  - name: events
+    database: prod_db
+    columns:
+      - id UInt64
+      - name String
+      - created_at DateTime
+    order_by: id
+  - name: logs
+    database: prod_db
+    columns:
+      - log_id UInt64
+      - message String
+      - created_at DateTime
+    order_by: log_id
+# ===============================
+# TLS / Security
+# ===============================
+clickhouse_tls_enabled: true
+clickhouse_tls_cert_file: "/etc/clickhouse/certs/server.crt"
+clickhouse_tls_key_file: "/etc/clickhouse/certs/server.key"
+clickhouse_tls_cert_dir: "/etc/clickhouse/certs"
+
+# ===============================
+# RBAC / Users
+# ===============================
+clickhouse_manage_rbac: false
+clickhouse_users: []
+clickhouse_roles: []
+# ===============================
+# Production / Operational
+# ===============================
+clickhouse_monitoring_enabled: true
+clickhouse_backup_enabled: true
+clickhouse_wait_timeout: 30
+clickhouse_max_connections: 1024
+clickhouse_max_memory_usage: 8000000000  # 8GB example
+clickhouse_max_partitions_per_insert: 1000
+clickhouse_max_threads: 16
+clickhouse_backup_enabled: true
+clickhouse_backup_dir: /var/backups/clickhouse
+clickhouse_backup_s3_bucket: "s3://your-clickhouse-backups"  # dynamically override in inventory/vault
+clickhouse_profiles:
+  default:
+    max_memory_usage: 10000000000
+    use_uncompressed_cache: 1
+    load_balancing: random

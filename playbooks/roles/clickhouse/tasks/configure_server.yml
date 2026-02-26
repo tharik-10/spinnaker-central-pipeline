@@ -1,0 +1,25 @@
+- name: Remove default localhost listen_host entries
+  ansible.builtin.replace:
+    path: /etc/clickhouse-server/config.xml
+    regexp: '<listen_host>.*</listen_host>'
+    replace: ''
+  notify: restart clickhouse
+
+- name: Deploy ClickHouse server configuration
+  ansible.builtin.template:
+    src: server.xml.j2
+    dest: /etc/clickhouse-server/config.d/server.xml
+    owner: clickhouse
+    group: clickhouse
+    mode: '0644'
+  notify: restart clickhouse
+
+- name: Generate ClickHouse profiles configuration
+  template:
+    src: profiles.xml.j2
+    dest: /etc/clickhouse-server/users.d/profiles.xml
+    owner: clickhouse
+    group: clickhouse
+    mode: '0644'
+  notify: restart clickhouse
+

@@ -1,0 +1,26 @@
+clickhouse_manage_rbac: true
+
+clickhouse_users:
+  - name: "analytics_user"
+    password: "{{ vault_analytics_password }}"
+    roles: ["analyst"]
+
+  - name: "db_admin"
+    password: "{{ vault_admin_password }}"
+    roles: ["admin"]
+
+clickhouse_roles:
+  - name: "admin"
+    privileges:
+      - "CREATE, SELECT, INSERT, ALTER, DROP, TRUNCATE, OPTIMIZE ON *.*"
+      - "SHOW, dictGet ON *.*"
+      - "ACCESS MANAGEMENT ON *.*" # This is the key for RBAC
+
+  - name: "analyst"  # <--- Add this entire block
+    privileges:
+      - "SELECT ON *.*"
+      - "SHOW TABLES ON *.*"
+      - "dictGet ON *.*"
+clickhouse_backup_enabled: true
+clickhouse_backup_s3_bucket: spin-cluster-spinnaker-data
+clickhouse_backup_s3_region: us-east-1

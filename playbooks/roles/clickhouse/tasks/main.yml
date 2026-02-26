@@ -1,0 +1,53 @@
+---
+- name: Include prerequisite tasks
+  ansible.builtin.include_tasks: prerequisites.yml
+
+- name: Include Debian installation tasks
+  ansible.builtin.include_tasks: install_debian.yml
+  when: ansible_os_family == "Debian"
+
+- name: Include RedHat installation tasks
+  ansible.builtin.include_tasks: install_redhat.yml
+  when: ansible_os_family == "RedHat"
+
+# 1. DEPLOY ALL CONFIGS FIRST
+- name: Include ClickHouse server configuration tasks
+  ansible.builtin.include_tasks: configure_server.yml
+  when: clickhouse_install_server | bool
+
+- name: Include ClickHouse Keeper configuration tasks
+  ansible.builtin.include_tasks: configure_keeper.yml
+  when: clickhouse_install_keeper | bool
+
+- name: Include ClickHouse cluster configuration tasks
+  ansible.builtin.include_tasks: configure_cluster.yml
+  when: clickhouse_enable_ha | bool
+
+- name: Configure RBAC (MUST BE BEFORE REPLICATION)
+  ansible.builtin.include_tasks: rbac.yml
+  when: clickhouse_manage_rbac | bool
+
+# 2. FORCE RESTART NOW
+# This makes ClickHouse load the 0.0.0.0 and the default profile
+- name: Flush handlers to apply configurations immediately
+  ansible.builtin.meta: flush_handlers
+
+# 3. NOW RUN DATABASE TASKS
+- name: Setup replicated tables
+  ansible.builtin.include_tasks: setup_replication.yml
+  when: clickhouse_enable_ha | bool
+
+# 4. REMAINING TASKS
+- name: Configure Prometheus monitoring
+  ansible.builtin.include_tasks: monitoring.yml
+  when: clickhouse_monitoring_enabled | bool
+
+- name: Setup backup tasks
+  ansible.builtin.include_tasks: backup.yml
+  when: clickhouse_backup_enabled | bool
+
+- name: Include service management tasks
+  ansible.builtin.include_tasks: service.yml
+
+- name: Include post-deployment verification tasks
+  ansible.builtin.include_tasks: verify.yml

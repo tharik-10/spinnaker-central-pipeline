@@ -1,0 +1,17 @@
+<clickhouse>
+    <users>
+        <default>
+            <password>{{ vault_admin_password }}</password>
+            <networks>
+                <ip>127.0.0.1</ip>
+                {# Loop through all hosts in the 'clickhouse' group to allow cross-node communication #}
+                {% for host in groups['clickhouse'] %}
+                <ip>{{ hostvars[host]['ansible_default_ipv4']['address'] }}</ip>
+                {% endfor %}
+            </networks>
+            <profile>default</profile>
+            <quota>default</quota>
+            <access_management>1</access_management>
+        </default>
+    </users>
+</clickhouse>

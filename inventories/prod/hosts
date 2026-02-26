@@ -1,0 +1,8 @@
+[clickhouse]
+ch1 ansible_host=172.31.39.166 ansible_user=ubuntu ansible_connection=local
+ch2 ansible_host=172.31.45.158 ansible_user=ubuntu
+ch3 ansible_host=172.31.26.93 ansible_user=ubuntu
+[keeper]
+ch1
+ch2
+ch3

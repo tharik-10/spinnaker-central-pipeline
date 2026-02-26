@@ -1,0 +1,97 @@
+---
+- name: Render RBAC users.xml
+  ansible.builtin.template:
+    src: users.xml.j2
+    dest: /etc/clickhouse-server/users.xml
+    owner: clickhouse
+    group: clickhouse
+    mode: "0640"
+  notify: restart clickhouse
+
+- name: Flush handlers to ensure users are loaded
+  ansible.builtin.meta: flush_handlers
+
+- name: Create RBAC Roles and Grant Privileges
+  ansible.builtin.shell: >
+    clickhouse-client --user default --password {{ vault_admin_password }} --host {{ ansible_default_ipv4.address }} --multiquery --query "
+    {% for role in clickhouse_roles %}
+    CREATE ROLE IF NOT EXISTS {{ role.name }};
+    {% if role.name == 'admin' %}
+    GRANT CREATE, SELECT, INSERT, ALTER, DROP, TRUNCATE, OPTIMIZE, SHOW, ACCESS MANAGEMENT ON *.* TO {{ role.name }} WITH GRANT OPTION;
+    {% else %}
+    {% for priv in role.privileges %}
+    GRANT {{ priv }} TO {{ role.name }};
+    {% endfor %}
+    {% endif %}
+    {% endfor %}
+    "
+  become: true
+  when: clickhouse_manage_rbac | bool
+
+- name: Create Users and Assign Roles (SQL Storage)
+  ansible.builtin.shell: >
+    clickhouse-client --user default --password {{ vault_admin_password }} --host {{ ansible_default_ipv4.address }} --multiquery --query "
+    {% for user in clickhouse_users %}
+    CREATE USER IF NOT EXISTS {{ user.name }} IDENTIFIED WITH sha256_password BY '{{ user.password }}';
+    {% for role in user.roles %}
+    GRANT {{ role }} TO {{ user.name }};
+    ALTER USER {{ user.name }} DEFAULT ROLE {{ role }};
+    {% endfor %}
+    {% endfor %}
+    "
+  become: true
+  when: clickhouse_manage_rbac | bool
+# ---------------------------------------------------------
+# TLS Certificate Management
+# ---------------------------------------------------------
+
+- name: Create ClickHouse certs directory
+  ansible.builtin.file:
+    path: "{{ clickhouse_tls_cert_file | dirname }}"
+    state: directory
+    owner: clickhouse
+    group: clickhouse
+    mode: '0755'
+  when: clickhouse_tls_enabled | bool
+
+- name: Generate self-signed TLS certificates (if missing)
+  ansible.builtin.command: >
+    openssl req -x509 -nodes -days 3650 -newkey rsa:2048
+    -keyout {{ clickhouse_tls_key_file }}
+    -out {{ clickhouse_tls_cert_file }}
+    -subj "/C=US/ST=State/L=City/O=ClickHouse/OU=IT/CN={{ ansible_hostname }}"
+  args:
+    creates: "{{ clickhouse_tls_cert_file }}"
+  when: clickhouse_tls_enabled | bool
+  notify: restart clickhouse
+
+- name: Ensure correct permissions on TLS files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: clickhouse
+    group: clickhouse
+    mode: '0700'
+  loop:
+    - "{{ clickhouse_tls_cert_file }}"
+    - "{{ clickhouse_tls_key_file }}"
+  when: clickhouse_tls_enabled | bool
+
+- name: Check if ClickHouse TLS files exist
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  register: tls_stat_results
+  loop:
+    - "{{ clickhouse_tls_cert_file }}"
+    - "{{ clickhouse_tls_key_file }}"
+  when: clickhouse_tls_enabled | bool
+
+- name: Fail if TLS is enabled but certificates are missing
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: "TLS is enabled but the file {{ item.item }} was not found on the host."
+  loop: "{{ tls_stat_results.results }}"
+  when: clickhouse_tls_enabled | bool
+
+- name: Flush handlers to restart ClickHouse immediately
+  ansible.builtin.meta: flush_handlers

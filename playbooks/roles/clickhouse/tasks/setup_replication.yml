@@ -1,0 +1,71 @@
+---
+- name: Ensure ClickHouse server is running
+  ansible.builtin.systemd:
+    name: clickhouse-server
+    state: started
+    enabled: true
+
+- name: Wait for ClickHouse TCP to be ready on Private IP
+  ansible.builtin.wait_for:
+    host: "{{ ansible_default_ipv4.address }}"
+    port: 9000
+    delay: 5
+    timeout: 60
+
+# ---------------------------------------------------------
+# Step 1: Collect unique databases from table definitions
+# ---------------------------------------------------------
+- name: Gather unique databases
+  ansible.builtin.set_fact:
+    clickhouse_databases: "{{ clickhouse_replicated_tables | map(attribute='database') | list | unique }}"
+
+# ---------------------------------------------------------
+# Step 2: Create databases using bootstrap user
+# ---------------------------------------------------------
+- name: Create databases if not exists
+  ansible.builtin.shell: >
+    clickhouse-client
+    --host {{ ansible_default_ipv4.address }}
+    --user default
+    --password {{ vault_admin_password }}
+    --multiquery
+    --query "CREATE DATABASE IF NOT EXISTS {{ item }}"
+  loop: "{{ clickhouse_databases }}"
+  become: true
+  args:
+    executable: /bin/bash
+  register: create_db
+  retries: 5
+  delay: 10
+  until: create_db.rc == 0
+
+# ---------------------------------------------------------
+# Step 3: Create replicated tables
+# ---------------------------------------------------------
+- name: Create replicated tables
+  ansible.builtin.shell: >
+    clickhouse-client
+    --host {{ ansible_default_ipv4.address }}
+    --user default
+    --password {{ vault_admin_password }}
+    --multiquery
+    --query "
+    CREATE TABLE IF NOT EXISTS {{ item.database }}.{{ item.name }}
+    (
+        {{ item.columns | join(', ') }}
+    )
+    ENGINE = ReplicatedMergeTree(
+        '/clickhouse/tables/{{ clickhouse_cluster_name }}/{{ item.database }}/{{ item.name }}',
+        '{{ replica_id }}'
+    )
+    ORDER BY {{ item.order_by }}
+    "
+  loop: "{{ clickhouse_replicated_tables }}"
+  become: true
+  args:
+    executable: /bin/bash
+  no_log: true
+  register: create_tables
+  retries: 3
+  delay: 10
+  until: create_tables.rc == 0
