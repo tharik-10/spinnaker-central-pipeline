@@ -71,3 +71,12 @@ clickhouse_profiles:
     max_memory_usage: 10000000000
     use_uncompressed_cache: 1
     load_balancing: random
+# ===============================
+# Monitoring & Debugging
+# ===============================
+clickhouse_service_name: "clickhouse-server"
+
+clickhouse_log_file: "/var/log/clickhouse-server/clickhouse-server.log"
+clickhouse_error_log_file: "/var/log/clickhouse-server/clickhouse-server.err.log"
+
+clickhouse_log_lines_to_fetch: 100

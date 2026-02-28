@@ -3,7 +3,71 @@
   ansible.builtin.template:
     src: prometheus.xml.j2
     dest: /etc/clickhouse-server/config.d/prometheus.xml
-    owner: clickhouse
-    group: clickhouse
+    owner: "{{ clickhouse_user }}"
+    group: "{{ clickhouse_group }}"
     mode: '0644'
   notify: restart clickhouse
+
+- name: Flush handlers to apply monitoring config
+  ansible.builtin.meta: flush_handlers
+
+# ----------------------------
+# Check ClickHouse Status
+# ----------------------------
+
+- name: Check ClickHouse service status
+  ansible.builtin.command: systemctl is-active {{ clickhouse_service_name }}
+  register: clickhouse_status
+  ignore_errors: true
+  changed_when: false
+
+- name: Show ClickHouse service status
+  ansible.builtin.debug:
+    msg: "{{ clickhouse_service_name }} status: {{ clickhouse_status.stdout }}"
+
+# ----------------------------
+# If DOWN → Fetch Logs
+# ----------------------------
+
+- name: Fetch last N lines of ClickHouse server log (if down)
+  ansible.builtin.command: >
+    tail -n {{ clickhouse_log_lines_to_fetch }} {{ clickhouse_log_file }}
+  register: clickhouse_logs
+  when: clickhouse_status.stdout != "active"
+  ignore_errors: true
+
+- name: Show ClickHouse server logs (if down)
+  ansible.builtin.debug:
+    var: clickhouse_logs.stdout_lines
+  when: clickhouse_status.stdout != "active"
+
+# ----------------------------
+# If DOWN → Fetch Error/Trace Logs
+# ----------------------------
+
+- name: Fetch last N lines of ClickHouse error log (if down)
+  ansible.builtin.command: >
+    tail -n {{ clickhouse_log_lines_to_fetch }} {{ clickhouse_error_log_file }}
+  register: clickhouse_traces
+  when: clickhouse_status.stdout != "active"
+  ignore_errors: true
+
+- name: Show ClickHouse error logs (if down)
+  ansible.builtin.debug:
+    var: clickhouse_traces.stdout_lines
+  when: clickhouse_status.stdout != "active"
+
+# ----------------------------
+# If UP → Show Metrics URL
+# ----------------------------
+
+- name: Set metrics URL
+  ansible.builtin.set_fact:
+    clickhouse_metrics_url: >-
+      http://{{ clickhouse_prometheus_listen }}:{{ clickhouse_prometheus_port }}/metrics
+  when: clickhouse_status.stdout == "active"
+
+- name: Display Metrics URL
+  ansible.builtin.debug:
+    msg: "Metrics available at: {{ clickhouse_metrics_url }}"
+  when: clickhouse_status.stdout == "active"
