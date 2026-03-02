@@ -1,0 +1,16 @@
+# ===============================
+# Internal Cluster Logic
+# ===============================
+# Extract all IPs from the clickhouse group for configuration
+# clickhouse_nodes: "{{ groups['clickhouse'] | map('extract', hostvars, ['ansible_host']) | list }}"
+
+# Automatically calculate Replica ID based on inventory position (padded with 0)
+# Example: host 1 = 01, host 2 = 02
+replica_id: "{{ '%02d' | format(item.nodes.index(inventory_hostname) + 1) }}"
+
+# Internal pathing
+clickhouse_config_dir: "/etc/clickhouse-server"
+# clickhouse_env_file: "/etc/clickhouse-server/clickhouse.env"
+
+# Prometheus listener (usually stays tied to the default IP)
+clickhouse_prometheus_listen: "{{ ansible_default_ipv4.address }}"
